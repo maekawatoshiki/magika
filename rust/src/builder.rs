@@ -73,7 +73,11 @@ impl MagikaBuilder {
     }
 
     /// Consumes the builder to create a Magika session.
-    pub fn build(self, model_dir: impl AsRef<Path>) -> MagikaResult<MagikaSession> {
+    pub fn build(
+        self,
+        model_dir: impl AsRef<Path>,
+        config_dir: impl AsRef<Path>,
+    ) -> MagikaResult<MagikaSession> {
         // The onnxruntime crate mentions that only one ONNX environment can be created per process,
         // but doesn't provide a way to access their singleton. We hold our own singleton to their
         // singleton. This simplifies lifetime issues by using `'static` everywhere.
@@ -94,7 +98,10 @@ impl MagikaBuilder {
             .with_optimization_level(self.optimization_level)?
             .with_model_from_file(model_dir.join("model.onnx"))?;
         let session = Mutex::new(session);
-        let config = MagikaConfig::parse(model_dir.join("model_config.json"))?;
+        let config = MagikaConfig::parse(
+            model_dir.join("model_config.json"),
+            config_dir.as_ref().join("content_types_config.json"),
+        )?;
         Ok(MagikaSession { session, config })
     }
 }

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::HashMap;
 use std::fs::File;
 use std::path::Path;
 use std::pin::Pin;
@@ -25,9 +26,24 @@ use serde::Deserialize;
 use crate::input::{MagikaAsyncInputApi, MagikaSyncInputApi};
 use crate::{MagikaFeatures, MagikaOutput, MagikaResult};
 
+#[derive(Debug, Default, Deserialize)]
+pub(crate) struct MagikaContentTypeConfig {
+    pub(crate) mimes: HashMap<String, MagikaContentType>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct MagikaContentType {
+    // pub(crate) name: String,
+    // pub(crate) group: Option<String>,
+    pub(crate) description: Option<String>,
+}
+
 #[derive(Debug, Deserialize)]
 pub(crate) struct MagikaConfig {
     train_dataset_info: TrainDatasetInfo,
+
+    #[serde(skip)]
+    content_types_config: MagikaContentTypeConfig,
 }
 
 #[derive(Debug, Deserialize)]
@@ -40,9 +56,25 @@ struct TargetLabelsInfo {
     target_labels_space: Vec<String>,
 }
 
-impl MagikaConfig {
+impl MagikaContentTypeConfig {
     pub(crate) fn parse(path: impl AsRef<Path>) -> MagikaResult<Self> {
-        Ok(serde_json::from_reader(File::open(path)?)?)
+        let mimes: HashMap<String, MagikaContentType> = serde_json::from_reader(File::open(path)?)?;
+        Ok(MagikaContentTypeConfig { mimes })
+    }
+
+    pub(crate) fn describe(&self, mime: &str) -> Option<&MagikaContentType> {
+        self.mimes.get(mime)
+    }
+}
+
+impl MagikaConfig {
+    pub(crate) fn parse(
+        path: impl AsRef<Path>,
+        content_path: impl AsRef<Path>,
+    ) -> MagikaResult<Self> {
+        let mut this: Self = serde_json::from_reader(File::open(path)?)?;
+        this.content_types_config = MagikaContentTypeConfig::parse(content_path)?;
+        Ok(this)
     }
 
     pub(crate) fn target_label(&self, index: usize) -> &str {
@@ -77,8 +109,19 @@ impl MagikaConfig {
                 }
             }
             let label = self.target_label(best).to_string();
+            let description = self
+                .content_types_config
+                .describe(&label)
+                .unwrap()
+                .description
+                .clone()
+                .unwrap_or_default();
             let score = scores[best];
-            results.push(MagikaOutput { label, score });
+            results.push(MagikaOutput {
+                label,
+                description,
+                score,
+            });
         }
         results
     }

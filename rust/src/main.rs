@@ -35,7 +35,7 @@ async fn main() -> Result<()> {
         .with_logging_level(flags.logging_level.into())
         .with_number_threads(1)
         .with_optimization_level(flags.optimization_level.into())
-        .build(flags.model_dir)?;
+        .build(flags.model_dir, flags.config_dir)?;
     // Extract features concurrently.
     let mut features = FuturesUnordered::new();
     for (index, path) in flags.path.iter().enumerate() {
@@ -72,8 +72,9 @@ async fn main() -> Result<()> {
         let result = result.unwrap();
         let path = path.display();
         let label = result.label();
-        let score = result.score();
-        println!("{path} is {label} with score {score}");
+        let desc = result.description();
+        let score = result.score() * 100.0;
+        println!("\x1b[1;37m{path}: {desc} ({label})\x1b[0m at {score:.2}%");
     }
     Ok(())
 }
@@ -84,6 +85,9 @@ async fn main() -> Result<()> {
 pub struct Flags {
     /// Directory containing the `model.onnx` file and configuration files.
     pub model_dir: PathBuf,
+
+    /// Directory containing the `content_types_config.json` file.
+    pub config_dir: PathBuf,
 
     /// List of paths to the files to analyze.
     pub path: Vec<PathBuf>,
