@@ -130,7 +130,7 @@ impl MagikaConfig {
 // TODO: Read those constants from the config file.
 pub(crate) const FEATURE_SIZE: usize = 512;
 const FEATURE_PADDING: f32 = 256f32;
-const BUFFER_SIZE: usize = 2 * 4096;
+const BUFFER_SIZE: usize = 4096;
 
 fn extract_features_sync(file: impl MagikaSyncInputApi) -> MagikaResult<Vec<f32>> {
     let mut future = extract_features_async(file);
@@ -160,7 +160,7 @@ async fn extract_features_async(mut file: impl MagikaAsyncInputApi) -> MagikaRes
         let trimmed_beg = BUFFER_SIZE - beg.len();
         let trimmed_end = BUFFER_SIZE - end.len();
         let mid_offset = trimmed_beg + (file_len - trimmed_beg - trimmed_end - FEATURE_SIZE) / 2;
-        let mut mid = [0; BUFFER_SIZE];
+        let mut mid = [0; FEATURE_SIZE];
         file.read_at(&mut mid, mid_offset).await?;
         extract_features(&beg, &mid, &end)
     }
