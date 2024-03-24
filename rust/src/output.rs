@@ -16,6 +16,7 @@
 #[derive(Clone)]
 pub struct MagikaOutput {
     pub(crate) label: String,
+    pub(crate) group: String,
     pub(crate) description: String,
     pub(crate) score: f32,
 }
@@ -24,6 +25,11 @@ impl MagikaOutput {
     /// Returns the most probable label.
     pub fn label(&self) -> &str {
         &self.label
+    }
+
+    /// Returns the group of the most probable label.
+    pub fn group(&self) -> &str {
+        &self.group
     }
 
     /// Returns the description of the most probable label.

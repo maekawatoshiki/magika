@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::path::PathBuf;
+use std::{collections::HashMap, path::PathBuf};
 
 use anyhow::{ensure, Result};
 use clap::{Parser, ValueEnum};
@@ -36,6 +36,7 @@ async fn main() -> Result<()> {
         .with_number_threads(1)
         .with_optimization_level(flags.optimization_level.into())
         .build(flags.model_dir, flags.config_dir)?;
+
     // Extract features concurrently.
     let mut features = FuturesUnordered::new();
     for (index, path) in flags.path.iter().enumerate() {
@@ -46,6 +47,7 @@ async fn main() -> Result<()> {
             Ok::<_, MagikaError>((index, features))
         });
     }
+
     // Infer by batch.
     let mut results = vec![None; flags.path.len()];
     loop {
@@ -67,15 +69,31 @@ async fn main() -> Result<()> {
             break;
         }
     }
+
+    let color_by_group = vec![
+        ("document", "\x1b[1;35m"),
+        ("executable", "\x1b[1;32m"),
+        ("archive", "\x1b[1;31m"),
+        ("audio", "\x1b[1;33m"),
+        ("image", "\x1b[1;33m"),
+        ("video", "\x1b[1;33m"),
+        ("code", "\x1b[1;34m"),
+    ]
+    .iter()
+    .cloned()
+    .collect::<HashMap<_, _>>();
+
     // Print results.
     for (path, result) in flags.path.iter().zip(results.into_iter()) {
         let result = result.unwrap();
         let path = path.display();
-        let label = result.label();
+        let group = result.group();
         let desc = result.description();
         let score = result.score() * 100.0;
-        println!("\x1b[1;37m{path}: {desc} ({label})\x1b[0m at {score:.2}%");
+        let color = color_by_group.get(group).copied().unwrap_or("\x1b[1;37m");
+        println!("{color}{path}: {desc} ({group})\x1b[0m at {score:.2}%");
     }
+
     Ok(())
 }
 
