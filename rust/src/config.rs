@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::HashMap;
 use std::fs::File;
 use std::path::Path;
 use std::pin::Pin;
@@ -25,8 +26,14 @@ use crate::input::{MagikaAsyncInputApi, MagikaSyncInputApi};
 use crate::{MagikaAsyncInput, MagikaFeatures, MagikaOutput, MagikaResult, MagikaSyncInput};
 
 /// Magika configuration.
-#[derive(Debug, Deserialize)]
+#[derive(Debug)]
 pub struct MagikaConfig {
+    model_config: ModelConfig,
+    content_type_config: ContentTypeConfig,
+}
+
+#[derive(Debug, Deserialize)]
+struct ModelConfig {
     train_dataset_info: TrainDatasetInfo,
 }
 
@@ -40,18 +47,47 @@ struct TargetLabelsInfo {
     target_labels_space: Vec<String>,
 }
 
-impl MagikaConfig {
-    /// Parses a config file from a model directory.
-    pub fn new(model_dir: impl AsRef<Path>) -> MagikaResult<Self> {
-        MagikaConfig::parse(model_dir.as_ref().join("model_config.json"))
+#[derive(Debug, Default, Deserialize)]
+pub(crate) struct ContentTypeConfig {
+    pub(crate) mimes: HashMap<String, ContentType>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct ContentType {
+    // pub(crate) name: String,
+    // pub(crate) group: Option<String>,
+    pub(crate) description: Option<String>,
+}
+
+impl ContentTypeConfig {
+    pub(crate) fn parse(path: impl AsRef<Path>) -> MagikaResult<Self> {
+        let mimes: HashMap<String, ContentType> = serde_json::from_reader(File::open(path)?)?;
+        Ok(ContentTypeConfig { mimes })
     }
 
-    pub(crate) fn parse(path: impl AsRef<Path>) -> MagikaResult<Self> {
-        Ok(serde_json::from_reader(File::open(path)?)?)
+    pub(crate) fn describe(&self, mime: &str) -> Option<&ContentType> {
+        self.mimes.get(mime)
+    }
+}
+
+impl MagikaConfig {
+    /// Parses a config file from a model directory.
+    pub fn new(model_dir: impl AsRef<Path>, config_dir: impl AsRef<Path>) -> MagikaResult<Self> {
+        MagikaConfig::parse(model_dir.as_ref().join("model_config.json"), config_dir.as_ref().join("content_types_config.json"))
+    }
+
+    pub(crate) fn parse(path: impl AsRef<Path>, content_path: impl AsRef<Path>) -> MagikaResult<Self> {
+        let model_config = serde_json::from_reader(File::open(path)?)?;
+        let content_type_config = ContentTypeConfig::parse(content_path)?;
+        Ok(MagikaConfig {
+            model_config,
+            content_type_config,
+        })
     }
 
     pub(crate) fn target_label(&self, index: usize) -> &str {
         &self
+            .model_config
             .train_dataset_info
             .target_labels_info
             .target_labels_space[index]
@@ -84,8 +120,15 @@ impl MagikaConfig {
                 }
             }
             let label = self.target_label(best).to_string();
+            let description = self
+                .content_type_config
+                .describe(&label)
+                .unwrap()
+                .description
+                .clone()
+                .unwrap_or_default();
             let score = scores[best];
-            results.push(MagikaOutput { label, score });
+            results.push(MagikaOutput { label, description, score });
         }
         results
     }

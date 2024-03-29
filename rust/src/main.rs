@@ -34,7 +34,7 @@ async fn main() -> Result<()> {
     let (result_sender, mut result_receiver) =
         tokio::sync::mpsc::channel::<Result<BatchResponse>>(flags.num_sessions);
     let (batch_sender, batch_receiver) = async_channel::bounded::<BatchRequest>(flags.num_sessions);
-    let config = Arc::new(MagikaConfig::new(&flags.model_dir)?);
+    let config = Arc::new(MagikaConfig::new(&flags.model_dir, &flags.config_dir)?);
     tokio::spawn({
         let flags = flags.clone();
         let config = config.clone();
@@ -73,8 +73,9 @@ async fn main() -> Result<()> {
         let result = result.unwrap();
         let path = path.display();
         let label = result.label();
-        let score = result.score();
-        println!("{path} is {label} with score {score}");
+        let desc = result.description();
+        let score = result.score() * 100.0;
+        println!("\x1b[1;37m{path}: {desc} ({label})\x1b[0m at {score:.2}%");
     }
     Ok(())
 }
@@ -154,6 +155,9 @@ fn infer_batch(
 pub struct Flags {
     /// Directory containing the `model.onnx` file and configuration files.
     pub model_dir: PathBuf,
+
+    /// Directory containing the `content_types_config.json` file.
+    pub config_dir: PathBuf,
 
     /// List of paths to the files to analyze.
     pub path: Vec<PathBuf>,
