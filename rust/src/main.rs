@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::path::PathBuf;
+use std::{path::PathBuf, collections::HashMap};
 use std::sync::Arc;
 
 use anyhow::{bail, ensure, Result};
@@ -35,6 +35,7 @@ async fn main() -> Result<()> {
         tokio::sync::mpsc::channel::<Result<BatchResponse>>(flags.num_sessions);
     let (batch_sender, batch_receiver) = async_channel::bounded::<BatchRequest>(flags.num_sessions);
     let config = Arc::new(MagikaConfig::new(&flags.model_dir, &flags.config_dir)?);
+
     tokio::spawn({
         let flags = flags.clone();
         let config = config.clone();
@@ -45,6 +46,7 @@ async fn main() -> Result<()> {
             }
         }
     });
+
     for _ in 0..flags.num_sessions {
         std::thread::spawn({
             let flags = flags.clone();
@@ -58,6 +60,7 @@ async fn main() -> Result<()> {
             }
         });
     }
+
     // Update results.
     let mut results = vec![None; flags.path.len()];
     drop(result_sender);
@@ -68,14 +71,29 @@ async fn main() -> Result<()> {
             results[index] = Some(result);
         }
     }
+
+    let color_by_group = vec![
+        ("document", "\x1b[1;35m"),
+        ("executable", "\x1b[1;32m"),
+        ("archive", "\x1b[1;31m"),
+        ("audio", "\x1b[1;33m"),
+        ("image", "\x1b[1;33m"),
+        ("video", "\x1b[1;33m"),
+        ("code", "\x1b[1;34m"),
+    ]
+    .iter()
+    .cloned()
+    .collect::<HashMap<_, _>>();
+
     // Print results.
     for (path, result) in flags.path.iter().zip(results.into_iter()) {
         let result = result.unwrap();
         let path = path.display();
-        let label = result.label();
+        let group = result.group();
         let desc = result.description();
         let score = result.score() * 100.0;
-        println!("\x1b[1;37m{path}: {desc} ({label})\x1b[0m at {score:.2}%");
+        let color = color_by_group.get(group).copied().unwrap_or("\x1b[1;37m");
+        println!("{color}{path}: {desc} ({group})\x1b[0m at {score:.2}%");
     }
     Ok(())
 }

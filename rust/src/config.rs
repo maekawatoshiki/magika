@@ -55,7 +55,7 @@ pub(crate) struct ContentTypeConfig {
 #[derive(Debug, Deserialize)]
 pub(crate) struct ContentType {
     // pub(crate) name: String,
-    // pub(crate) group: Option<String>,
+    pub(crate) group: Option<String>,
     pub(crate) description: Option<String>,
 }
 
@@ -67,6 +67,22 @@ impl ContentTypeConfig {
 
     pub(crate) fn describe(&self, mime: &str) -> Option<&ContentType> {
         self.mimes.get(mime)
+    }
+
+    pub(crate) fn description(&self, mime: &str) -> String {
+        self.describe(mime)
+            .unwrap()
+            .description
+            .clone()
+            .unwrap_or_default()
+    }
+
+    pub(crate) fn group(&self, mime: &str) -> String {
+        self.describe(mime)
+            .unwrap()
+            .group
+            .clone()
+            .unwrap_or_default()
     }
 }
 
@@ -120,15 +136,10 @@ impl MagikaConfig {
                 }
             }
             let label = self.target_label(best).to_string();
-            let description = self
-                .content_type_config
-                .describe(&label)
-                .unwrap()
-                .description
-                .clone()
-                .unwrap_or_default();
+            let group = self.content_type_config.group(&label);
+            let description = self.content_type_config.description(&label);
             let score = scores[best];
-            results.push(MagikaOutput { label, description, score });
+            results.push(MagikaOutput { label, group, description, score });
         }
         results
     }
